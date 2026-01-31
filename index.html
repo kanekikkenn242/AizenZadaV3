@@ -300,18 +300,6 @@
             box-shadow: 0 6px 20px rgba(29, 68, 184, 0.4);
         }
 
-        .btn-success {
-            background: linear-gradient(135deg, #25D366, #128C7E);
-            color: white;
-            box-shadow: 0 6px 20px rgba(37, 211, 102, 0.3);
-            margin-top: 15px;
-        }
-        
-        .btn-success:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(37, 211, 102, 0.4);
-        }
-
         .btn-primary:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(29, 68, 184, 0.5);
@@ -350,22 +338,6 @@
             color: #6b7280;
             margin-top: 4px;
         }
-
-        .social-links { display: grid; gap: 10px; }
-        .social-link {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 14px;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 14px;
-            text-decoration: none;
-            transition: all 0.3s;
-        }
-        .social-whatsapp { background: #25D366; color: white; }
-        .social-instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); color: white; }
 
         .hidden { display: none !important; }
 
@@ -468,21 +440,15 @@
                     <div id="expirationDate" class="info-value"></div>
                     <div id="daysLeft" class="info-subtext"></div>
                 </div>
-                <div class="info-box">
-                    <div class="info-label">Contato</div>
-                    <div class="social-links">
-                        <a href="" target="_blank" class="social-link social-Zada">
-                             
-                        </a>
-                        <a href="" target="_blank" class="social-link social-Aizen">
-                            
-                    </div>
-                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Configuration
+        const API_URL = 'http://localhost:3000/api';
+
+        // Canvas animation
         const canvas = document.getElementById('neuralCanvas');
         const ctx = canvas.getContext('2d');
         
@@ -548,17 +514,7 @@
         animate();
         window.addEventListener('resize', resizeCanvas);
 
-        const VALID_KEYS = {
-            'AIZEN-2024-DEMO': {
-                expires: new Date('2026-01-30T23:59:59')
-            },
-            'AIZEN-TEST-KEY1': {
-                expires: new Date('2026-02-02T23:59:59')
-            }
-        };
-
         let currentKeyData = null;
-        let countdownInterval = null;
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -570,26 +526,34 @@
             setTimeout(() => toast.classList.remove('active'), 3000);
         }
 
-        function validateKey(keyCode) {
+        async function validateKey(keyCode) {
             try {
                 showToast('Validando chave...', 'loading');
                 
-                const keyInfo = VALID_KEYS[keyCode];
-                
-                if (!keyInfo) {
-                    throw new Error('Key inválida');
+                const response = await fetch(`${API_URL}/validate-key`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ key: keyCode })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (data.expired) {
+                        document.getElementById('expiredMessage').classList.remove('hidden');
+                    }
+                    throw new Error(data.error || 'Key inválida');
                 }
 
-                const expiryDate = keyInfo.expires;
-                
-                if (expiryDate < new Date()) {
-                    document.getElementById('expiredMessage').classList.remove('hidden');
-                    throw new Error('Esta key expirou');
+                if (!data.valid) {
+                    throw new Error(data.error || 'Key inválida');
                 }
                 
                 currentKeyData = {
                     key: keyCode,
-                    expiryDate: expiryDate.toISOString()
+                    expiryDate: data.expiresAt
                 };
                 
                 localStorage.setItem('aizenzada_key', keyCode);
@@ -606,7 +570,6 @@
 
         function logout() {
             localStorage.clear();
-            if (countdownInterval) clearInterval(countdownInterval);
             showToast('Sessão encerrada', 'error');
             setTimeout(() => window.location.reload(), 1000);
         }
@@ -717,7 +680,7 @@
             }, 60000);
         }
 
-        document.getElementById('loginForm').addEventListener('submit', e => {
+        document.getElementById('loginForm').addEventListener('submit', async e => {
             e.preventDefault();
             const key = document.getElementById('keyInput').value.trim();
             const btn = document.getElementById('loginBtn');
@@ -727,7 +690,7 @@
             btn.disabled = true;
             btn.textContent = 'Validando...';
             document.getElementById('expiredMessage').classList.add('hidden');
-            validateKey(key);
+            await validateKey(key);
         });
 
         setTimeout(() => {
